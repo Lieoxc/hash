@@ -19,13 +19,13 @@ typedef unsigned int(*hash_key_func_t)(const void *key,int klen);
  */
 typedef struct hash_node_st {
 
-    // 键
-	void *val;
+    
+	void *val; //值
     int key_len;
     // 链往后继节点
     struct hash_node_st *next;
 	unsigned int __hval; //当前节点的hash值，用于rehash
-	char key[0];
+	char key[0]; //键 
 
 } hash_node_st;
 
@@ -60,18 +60,30 @@ typedef struct hash {
 
 
 /*
-	初始化hash
+	创建hash
 */
 hash_st * hash_create(hash_data_free_funct_t del,hash_key_func_t keyf,
 							unsigned int slotnum);
-
+/*
+	hash添加
+*/
 int hash_insert(hash_st* ht, const void *key,int len,void *val);
 
+/*
+	hash查找
+*/
 int hash_search(hash_st* ht, const void *key,int len,void **val);
 
+/*
+	hash删除
+*/
 int hash_delete(hash_st* ht, const void *key,int len);
 
 
+/*
+	hash释放
+*/
+void hash_destory(hash_st *ht);
 
 
 

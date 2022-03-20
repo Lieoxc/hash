@@ -65,6 +65,21 @@ unsigned int hashGenHashFunction(const void *key, int len) {
 
     return (unsigned int)h;
 }
+/*****************************************************************************
+ * Function      : hash_create
+ * Description   : 创建一个hash表
+ * Input         : hash_data_free_funct_t del  
+                hash_key_func_t keyf        
+                unsigned int slotnum        
+ * Output        : None
+ * Return        : hash_st
+ * Others        : 
+ * Record
+ * 1.Date        : 20220321
+ *   Author      : lxc
+ *   Modification: Created function
+
+*****************************************************************************/
 hash_st * hash_create(hash_data_free_funct_t del,hash_key_func_t keyf,
 							unsigned int slotnum)
 {
@@ -118,6 +133,22 @@ hash_st * hash_create(hash_data_free_funct_t del,hash_key_func_t keyf,
 static void hash_rehash(hash_st *h,int flag){
 
 }
+/*****************************************************************************
+ * Function      : hash_insert
+ * Description   : 插入一个键值对到hash
+ * Input         : hash_st* ht      
+                const void *key  
+                int len          
+                void *val        
+ * Output        : None
+ * Return        : 
+ * Others        : 
+ * Record
+ * 1.Date        : 20220321
+ *   Author      : lxc
+ *   Modification: Created function
+
+*****************************************************************************/
 int hash_insert(hash_st* ht, const void *key,int len,void *val){
 	if( !ht || !key){
 		return -1;
@@ -159,6 +190,22 @@ int hash_insert(hash_st* ht, const void *key,int len,void *val){
 	}
 	return 0;
 }
+/*****************************************************************************
+ * Function      : hash_search
+ * Description   : 在hash中查找键值对
+ * Input         : hash_st* ht      
+                const void *key  
+                int len          
+                void **val       
+ * Output        : None
+ * Return        : 
+ * Others        : 
+ * Record
+ * 1.Date        : 20220321
+ *   Author      : lxc
+ *   Modification: Created function
+
+*****************************************************************************/
 int hash_search(hash_st* ht, const void *key,int len,void **val){
 	if( !ht || !key){
 		return -1;
@@ -178,7 +225,21 @@ int hash_search(hash_st* ht, const void *key,int len,void **val){
 	}
 	return -1;
 }
+/*****************************************************************************
+ * Function      : hash_delete
+ * Description   : 删除一个键值对
+ * Input         : hash_st* ht      
+                const void *key  
+                int len          
+ * Output        : None
+ * Return        : 
+ * Others        : 
+ * Record
+ * 1.Date        : 20220321
+ *   Author      : lxc
+ *   Modification: Created function
 
+*****************************************************************************/
 int hash_delete(hash_st* ht, const void *key,int len){
 	if( !ht || !key){
 		return -1;
@@ -209,6 +270,19 @@ int hash_delete(hash_st* ht, const void *key,int len){
 		p = p->next;
 	}
 }
+/*****************************************************************************
+ * Function      : hash_destory
+ * Description   : hash释放
+ * Input         : hash_st *ht  
+ * Output        : None
+ * Return        : 
+ * Others        : 
+ * Record
+ * 1.Date        : 20220321
+ *   Author      : lxc
+ *   Modification: Created function
+
+*****************************************************************************/
 void hash_destory(hash_st *ht){
 	unsigned int i;
 	struct hash_node_st *t;
