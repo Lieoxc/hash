@@ -8,47 +8,26 @@
 	#include <stdbool.h>
 #endif
 
+#define POWEROF2(x) ((((x)-1) & (x))==0)
+#define MAX_UNSIGNED_32INT (0xFFFFFFFF)
 
-
-/*
- * 操作返回状态
- */
-#define DICT_OK 0
-#define DICT_ERR 1
-#define DEFAULT_HASH_NODE 20
-#define FREE_ENTRY(entry) free_hash(entry)
-
-/* Unused arguments generate annoying warnings... */
-#define DICT_NOTUSED(V) ((void) V)
-
-
-#define HASH_FOR_EACH(dict,hash) \
-	for((dict = hash_first(hash)) ; dict != NULL ; dict = hash_next(hash,dict)) 
-
-/*******************************************************************************
-*@ Description    :   当遍历过程中需要对hash进行操作时，比如删除，可以使用以下的宏
-*@ Input          :   当dict
-*@ Output         :
-*@ Return         :
-*******************************************************************************/
-
-#define HASH_FOR_EACH_SAFE(dict, next, hash) \
-	for((dict = hash_first(hash)) ;((next = hash_next(hash,dict)) && 0) || dict != NULL ; dict = next) 
+typedef void(*hash_data_free_funct_t)(void *data);
+typedef unsigned int(*hash_key_func_t)(const void *key,int klen);
 
 /*
  * 哈希表节点 链式结构解决hash冲突
  */
-typedef struct dictEntry {
+typedef struct hash_node_st {
 
-    // 键
-    void *key;
-	void *val;
+    
+	void *val; //值
     int key_len;
     // 链往后继节点
-    struct dictEntry *next;
+    struct hash_node_st *next;
 	unsigned int __hval; //当前节点的hash值，用于rehash
+	char key[0]; //键 
 
-} dictEntry;
+} hash_node_st;
 
 /*
  * 哈希表
@@ -56,53 +35,57 @@ typedef struct dictEntry {
 typedef struct hash {
 
     // 哈希表节点指针数组（俗称桶，bucket）
-    dictEntry **table;      
+    hash_node_st **slots;
+	
+	//初始化hash节点数量
+	unsigned int nslot;
 
-    // 指针数组的大小
-    unsigned long size;     
+	// hash表中允许最大的节点数量(超过此数量，将会进行rehash 扩容)
+	unsigned int max_element;
 
-    // 指针数组的长度掩码，用于计算索引值
-    unsigned long sizemask; 
+	// hash表中允许最小的节点数量(小于此数量，将会进行rehash 收缩)
+	unsigned int min_element;
 
     // 哈希表现有的节点数量
-    unsigned long used;     //没有使用   
+    unsigned long nelement;
 
-} hash;
+	//自定义的hash释放函数
+	hash_data_free_funct_t hdel;
 
-/*
-	计算hash key
-*/
-unsigned int hashGenHashFunction(const void *key, int len);
+	//自定义的hash生成函数
+	hash_key_func_t hkey;
+	
+} hash_st;
 
-/*
-	初始化hash
-*/
-struct hash * hash_init(struct hash * dict , int hash_node);
-
-/*
-	添加hash节点
-*/
-int hash_add(struct hash *dict,const char * key ,void * val );
-
-/*
-	删除hash节点
-*/
-void* hash_delete(struct hash *dict,const char * key);
-
-/*
-	删除hash节点
-*/
-struct dictEntry* hash_find(struct hash *dict,char *key);
 
 
 /*
-	释放hash
+	创建hash
 */
-void hash_destory_whit_func(struct hash* dict,void (* freefunc)(void *));
+hash_st * hash_create(hash_data_free_funct_t del,hash_key_func_t keyf,
+							unsigned int slotnum);
+/*
+	hash添加
+*/
+int hash_insert(hash_st* ht, const void *key,int len,void *val);
 
-struct dictEntry *hash_next(struct hash * hash, struct dictEntry * entry);
+/*
+	hash查找
+*/
+int hash_search(hash_st* ht, const void *key,int len,void **val);
 
-struct dictEntry *hash_first(struct hash * hash);
+/*
+	hash删除
+*/
+int hash_delete(hash_st* ht, const void *key,int len);
+
+
+/*
+	hash释放
+*/
+void hash_destory(hash_st *ht);
+
+
 
 
 /**********************************************************************************/

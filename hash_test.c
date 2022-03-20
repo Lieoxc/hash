@@ -2,17 +2,18 @@
 #include"hash.h"
 
 int main(void) {
-	struct hash* my_hash_test;
+	hash_st* my_hash_test;
 	char * key ="lxc";
-	hash_init(my_hash_test, 5);
-	hash_add(my_hash_test, key, "good");
-	struct dictEntry* find_entry = hash_find(my_hash_test, key);
-	if (find_entry != NULL){
-		printf("heelo owrld:%s:%s\n",key,(char*)find_entry->val);
+	my_hash_test = hash_create(NULL,NULL,8);
+	hash_insert(my_hash_test, key,strlen(key), "good");
+	char *hash_data = NULL;
+	if (hash_search(my_hash_test, key,strlen(key),(void**)&hash_data) == 0){
+		printf("heelo owrld:%s:%s\n",key,hash_data);
 	}
-	hash_delete(my_hash_test, key);
-	find_entry = hash_find(my_hash_test, key);
-	if (find_entry == NULL){
+	hash_delete(my_hash_test, key,strlen(key));
+
+	hash_data=NULL;
+	if (hash_search(my_hash_test, key,strlen(key),(void**)&hash_data) != 0){
 		printf("can not find :%s data\n",key);
 	}	
 }
