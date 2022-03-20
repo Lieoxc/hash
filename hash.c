@@ -9,12 +9,7 @@
 
 static uint32_t dict_hash_function_seed = 5381;
 
-void 
-free_hash(dictEntry * entry)
-{
-	free(entry->key);
-	free(entry);
-}
+
 /*****************************************************************************
  * Function      : hashGenHashFunction
  * Description   : 计算hash key
@@ -27,7 +22,6 @@ free_hash(dictEntry * entry)
  * 1.Date        : 20220320
  *   Author      : lxc
  *   Modification: Created function
-
 *****************************************************************************/
 unsigned int hashGenHashFunction(const void *key, int len) {
     /* 'm' and 'r' are mixing constants generated offline.
@@ -70,42 +64,50 @@ unsigned int hashGenHashFunction(const void *key, int len) {
     h ^= h >> 15;
 
     return (unsigned int)h;
-}    
-/*****************************************************************************
- * Function      : hash_create
- * Description   : 初始化hash
- * Input         : struct hash * dict  
-                int hash_node       
- * Output        : None
- * Return        : struct
- * Others        : 
- * Record
- * 1.Date        : 20220320
- *   Author      : lxc
- *   Modification: Created function
-
-*****************************************************************************/
-struct hash* hash_init(struct hash * dict,int hash_node){
-	if(hash_node < 0 || !dict){
-		return NULL;
-	}
-	dict->table = (dictEntry **)malloc(sizeof(dictEntry*)*hash_node);
-	if(dict->table == NULL){
-		return NULL;
-	}
-	memset(dict->table, 0, sizeof(dictEntry *)*hash_node);
-	dict->size = hash_node;
-	dict->sizemask = hash_node -1;
-	dict->used = 0;
-	return dict;
 }
+hash_st * hash_create(hash_data_free_funct_t del,hash_key_func_t keyf,
+							unsigned int slotnum)
+{
+	hash_st *h;
+	//只支持创建2的平方数量
+	if(!POWEROF2(slotnum)){
+		return NULL;
+	}
+	h = malloc(sizeof(hash_st));
+	if(h == NULL){
+		return NULL;
+	}
+	if(slotnum == 0){ /* 自动增长 */
+		h->nslot = 1<<3;
+		h->max_element = 1<<5;
+		h->min_element = 0;
+	}else{
+		h->nslot = slotnum;
+		h->max_element = MAX_UNSIGNED_32INT;
+		h->min_element = 0;
+	}
+	h->slots = malloc(h->nslot*sizeof(struct hash_node_st *));
+	if(h->slots == NULL){
+		free(h);
+		return NULL;
+	}
+	h->hdel = del;
+	if(keyf){
+		h->hkey =keyf;
+	}else{
+		h->hkey = hashGenHashFunction;
+	}
+	return h;
+}
+
 /*****************************************************************************
- * Function      : dup_string
- * Description   : 复制长度为len的字符串val，并返回指针，内存由调用者释放
- * Input         : const char * val  
-                int len           
+ * Function      : hash_rehash
+ * Description   : hash扩容收缩:flag小于0表示收缩，flag大于0表
+ 					示扩张，等于0什么都不干
+ * Input         : hash_st *h  
+                int flag    
  * Output        : None
- * Return        : void
+ * Return        : static
  * Others        : 
  * Record
  * 1.Date        : 20220320
@@ -113,189 +115,114 @@ struct hash* hash_init(struct hash * dict,int hash_node){
  *   Modification: Created function
 
 *****************************************************************************/
-void *dup_string(const char * val,int len){
-	if(val == NULL || len< 0){
-		return NULL;
+static void hash_rehash(hash_st *h,int flag){
+
+}
+int hash_insert(hash_st* ht, const void *key,int len,void *val){
+	if( !ht || !key){
+		return -1;
 	}
-	char * tmp = (char*)malloc(sizeof(char)*(len+1));
-	if (tmp == NULL){
-		return NULL;
+	unsigned int hval = ht->hkey(key,len);//计算出hash值
+	unsigned int idx = hval & (ht->nslot -1); //获取table数组的索引(数组下标)
+	struct hash_node_st *tmp;
+	struct hash_node_st *p = ht->slots[idx];
+		 
+	while(p){
+		if(hval == p->__hval
+			&& p->key_len == len && memcmp(p->key,key,len) == 0){
+				ht->hdel(p->val);
+				p->val = val;
+				return 0;
+			}
+			p = p->next;
 	}
-	memcpy(tmp,val,len);
-	tmp[len] = '\0';
-	return tmp;
+
+	//新节点
+	tmp = malloc(sizeof(struct hash_node_st) + len);
+
+	if(!tmp){
+		return -1;
+	}
+
+	memset(tmp,0,sizeof(struct hash_node_st) + len);
+	tmp->key_len = len;
+	memcpy(tmp->key,key,len);
 	
+	tmp->val = val;
+	tmp->__hval = hval;
+	tmp->next = ht->slots[idx];
+	ht->slots[idx] =tmp;
+	ht->nelement++;
+	
+	if(ht->nelement > ht->max_element){
+		hash_rehash(ht, 1);
+	}
+	return 0;
 }
-/*****************************************************************************
- * Function      : hash_add
- * Description   : hash节点添加（TODO 支持自动扩容）
- * Input         : struct hash *dict  
-                const char * key   
-                void * val         
- * Output        : None
- * Return        : 
- * Others        : 
- * Record
- * 1.Date        : 20220320
- *   Author      : lxc
- *   Modification: Created function
-
-*****************************************************************************/
-int hash_add(struct hash *dict,const char * key ,void * val ){
-	if(!dict || !key){
+int hash_search(hash_st* ht, const void *key,int len,void **val){
+	if( !ht || !key){
 		return -1;
 	}
-	int key_len = strlen(key);
-	unsigned int key_index = hashGenHashFunction(key, key_len)%dict->sizemask;
-	struct dictEntry * entry = (struct dictEntry *)malloc(sizeof(struct dictEntry));
-	if(entry == NULL){
-		return -1;
-	}
-	entry->key = dup_string(key,key_len);
-	entry->key_len = key_len;
-	entry->val = val;
-	entry->next = dict->table[key_index];//前插
-	dict->table[key_index] = entry;
-	dict->used++;
-}
-/*****************************************************************************
- * Function      : hash_delete
- * Description   : 删除指定key的节点
- * Input         : struct hash *dict  
-                const char * key   
- * Output        : None
- * Return        : 
- * Others        : 
- * Record
- * 1.Date        : 20220320
- *   Author      : lxc
- *   Modification: Created function
-
-*****************************************************************************/
-void* hash_delete(struct hash *dict,const char * key){
-	if (!dict || !key) {
-		return NULL;
-	}
-
-	int key_len = strlen(key);
-	unsigned int key_index = hashGenHashFunction(key,key_len)%dict->sizemask;
-	struct dictEntry* entry = dict->table[key_index];
-	struct dictEntry* pre_entry = NULL;
-	while(entry != NULL){
-		if(entry->key_len == key_len &&
-			!strncmp(entry->key,key,key_len)){
-			if( pre_entry == NULL){
-				dict->table[key_index] = entry->next;
-			} else {
-				pre_entry->next = entry->next;
-			}
-			void * tmp_ptr = entry->val;
-			FREE_ENTRY(entry);
-			dict->used--;
-			return tmp_ptr;
-		}else{
-			
-			pre_entry = entry;	//存在hash冲突，当前节点不是要删除节点，先记录前置节点
-			entry = entry->next; //移动到下一个节点
-		}
-	}
-	return NULL;
-}
-/*****************************************************************************
- * Function      : hash_find
- * Description   : 根据key查找对应hash，并返回entry,找不到返回NULL
- * Input         : struct hash *dict  
-                char *key          
- * Output        : None
- * Return        : struct
- * Others        : 
- * Record
- * 1.Date        : 20220320
- *   Author      : lxc
- *   Modification: Created function
-
-*****************************************************************************/
-struct dictEntry* hash_find(struct hash *dict,char *key){
-	if (!dict || !key) {
-		return NULL;
-	}
-	int key_len = strlen(key);
-	unsigned int key_index = hashGenHashFunction(key,key_len)%dict->sizemask;
-	struct dictEntry* entry = dict->table[key_index];
-	while (entry){
-		if(entry->key_len == key_len && 
-			!strncmp(entry->key,key,key_len)){
-			return entry;
-		}else{
-			entry = entry->next;
-		}
-	}
-	return NULL;
-}
-
-/*****************************************************************************
- * Function      : hash_destory_whit_func
- * Description   : 释放hash
- * Input         : struct hash* dict          
-                void (* freefunc)(void *)  
- * Output        : None
- * Return        : 
- * Others        : 
- * Record
- * 1.Date        : 20220320
- *   Author      : lxc
- *   Modification: Created function
-
-*****************************************************************************/
-void hash_destory_whit_func(struct hash* dict,void (* freefunc)(void *)){
-	dictEntry *dc,*next;
-	if (dict == NULL){
-		return ;
-	}
-	if (freefunc == NULL){
-		freefunc = &free;
-	}
-	HASH_FOR_EACH_SAFE(dc, next, dict){
-		freefunc(dc->val);
-		FREE_ENTRY(dc);
-	}
-	if(dict->table){
-		free(dict->table);
-	}
-}
-struct dictEntry *hash_next(struct hash * hash, struct dictEntry * entry){
-	if(entry == NULL || hash == NULL){
-		return NULL;
-	}
-
-	if( entry->next){
-		return entry->next;
-	} else {
-		int key = hashGenHashFunction(entry->key,strlen(entry->key))%hash->sizemask + 1;
-		if( key >= hash->sizemask){
-			return NULL;
-		} else {
-			for( ; key < hash->sizemask ; key++){
-				if( hash->table[key] != NULL){
-					return hash->table[key];
+	unsigned int hval = ht->hkey(key,len);//计算出hash值
+	unsigned int idx = hval & (ht->nslot -1); //获取table数组的索引(数组下标)
+	struct hash_node_st *p = ht->slots[idx];
+	while(p){
+		if(hval == p->__hval
+			&& p->key_len == len && memcmp(p->key,key,len) == 0){
+				if(val){
+					*val = p->val;
 				}
+				return 0;
 			}
-		}
+			p = p->next;
 	}
-	return NULL;
+	return -1;
 }
 
-struct dictEntry *hash_first(struct hash * hash){
-	if(hash == NULL || hash->used == 0){
-		return NULL;
+int hash_delete(hash_st* ht, const void *key,int len){
+	if( !ht || !key){
+		return -1;
 	}
+	unsigned int hval = ht->hkey(key,len);//计算出hash值
+	unsigned int idx = hval & (ht->nslot -1); //获取table数组的索引(数组下标)
+	struct hash_node_st *p = ht->slots[idx];
+	struct hash_node_st *pre_entry = NULL;
 
-	int i = 0;
-	for( i = 0 ; i <= hash->sizemask; i++){
-		if(hash->table[i] != NULL){
-			return hash->table[i];
+	while(p){
+		if(hval == p->__hval
+			&& p->key_len == len && memcmp(p->key,key,len) == 0){
+			if(pre_entry){
+				pre_entry->next = p->next;
+			}else{
+				ht->slots[idx] = p->next;
+			}
+			ht->nelement--;
+			if((void *)ht->hdel)
+				ht->hdel(p->val);
+			free(p);
+			if(ht->nelement > ht->min_element){
+				hash_rehash(ht, -1);
+			}
+			return 0;
+		}
+		pre_entry = p;
+		p = p->next;
+	}
+}
+void hash_destory(hash_st *ht){
+	unsigned int i;
+	struct hash_node_st *t;
+	for(i = 0; i< ht->nslot;i++){
+		while(ht->slots[i]){
+			t = ht->slots[i];
+			if((void*)ht->hdel){
+				ht->hdel(t->val);
+			}
+			free(t);
+			ht->slots[i] = ht->slots[i]->next;
 		}
 	}
-	return NULL;
+	free(ht->slots);
+	free(ht);
 }
 
