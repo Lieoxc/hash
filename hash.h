@@ -1,5 +1,5 @@
-#ifndef __DICT_H
-#define __DICT_H
+#ifndef __HASH_H
+#define __HASH_H
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
@@ -90,6 +90,6 @@ void hash_destory(hash_st *ht);
 
 /**********************************************************************************/
 
-#endif /* __DICT_H */
+#endif /* __HASH_H */
 
 
