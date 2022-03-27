@@ -9,6 +9,19 @@
 
 static uint32_t dict_hash_function_seed = 5381;
 
+/* rehash, if max_node reached */
+static const struct hash_spec_st {
+    unsigned int nslot;
+    unsigned int min_node;
+    unsigned int max_node;
+} hash_specs[] = {
+    { (1<<3), 0, (1<<5) },
+    { (1<<5), (1<<4), (1<<7) },
+    { (1<<7), (1<<6), (1<<9) },
+    { (1<<9), (1<<8), (1<<11) },
+    { (1<<11), (1<<10), (1<<13) },
+    { (1<<13), (1<<12), MAX_UNSIGNED_32INT }
+};
 
 /*****************************************************************************
  * Function      : hashGenHashFunction
@@ -130,9 +143,63 @@ hash_st * hash_create(hash_data_free_funct_t del,hash_key_func_t keyf,
  *   Modification: Created function
 
 *****************************************************************************/
-static void hash_rehash(hash_st *h,int flag){
-
+static void hash_rehash(hash_st *h, int flag)
+{
+    unsigned int new_nslot = 0, new_max = 0, new_min = 0;
+    struct hash_node_st **new_slots;
+    unsigned int i;
+    if (flag == 0)
+        return;
+    if (flag > 0) {
+        /* finding the next slot size and max/min element */
+        for (i = 0;
+             i < sizeof(hash_specs)/sizeof(struct hash_spec_st) - 1;
+             ++i) {
+            if (hash_specs[i].nslot == h->nslot) {
+                new_nslot = hash_specs[i+1].nslot;
+                new_max = hash_specs[i+1].max_node;
+                new_min = hash_specs[i+1].min_node;
+                break;
+            }
+        }
+    } else {
+        /* finding the prev slot size and max/min element */
+        for (i = 1; i < sizeof(hash_specs)/sizeof(struct hash_spec_st); ++i) {
+            if (hash_specs[i].nslot == h->nslot) {
+                new_nslot = hash_specs[i-1].nslot;
+                new_max = hash_specs[i-1].max_node;
+                new_min = hash_specs[i-1].min_node;
+                break;
+            }
+        }
+    }
+    if (!new_nslot) {
+        fprintf(stderr, "[BUG] rehashing, can not get next_mask\n");
+        return;
+    }
+    /* allocate new slots and move every node to new slots */
+    new_slots = malloc(new_nslot * sizeof(struct hash_node_st *));
+    if (new_slots == NULL) {
+        fprintf(stderr, "[BUG] rehashing, Out of memory\n");
+        return;
+    }
+    for (i = 0; i < h->nslot; ++i) {
+        struct hash_node_st *p = h->slots[i];
+        while (p) {
+            struct hash_node_st *next = p->next;
+            unsigned int newindex = p->__hval & (new_nslot - 1);
+            p->next = new_slots[newindex];
+            new_slots[newindex] = p;
+            p = next;
+        }
+    }
+    free(h->slots);
+    h->slots = new_slots;
+    h->nslot = new_nslot;
+    h->max_element = new_max;
+    h->min_element = new_min;
 }
+
 /*****************************************************************************
  * Function      : hash_insert
  * Description   : 插入一个键值对到hash
